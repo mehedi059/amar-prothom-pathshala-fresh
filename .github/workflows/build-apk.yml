@@ -1,0 +1,68 @@
+
+name: Build Amar Prothom Pathshala APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unpack project ZIP
+        run: |
+          mkdir -p /tmp/amar-project
+          unzip -o Amar_Prothom_Pathshala_Fresh_Start.zip -d /tmp/amar-project
+          cp -R /tmp/amar-project/Amar_Prothom_Pathshala/. .
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install audio generator
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-audio.txt
+
+      - name: Generate every lesson and rhyme audio
+        run: python scripts/generate_audio.py
+
+      - name: Verify generated audio files
+        run: python scripts/verify_audio.py
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Android platform files
+        run: flutter create --platforms=android --org com.mehadihasan --project-name amar_prothom_pathshala .
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart source
+        run: flutter analyze
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Verify audio bundled in APK
+        run: python scripts/verify_audio.py build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: amar-prothom-pathshala-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
